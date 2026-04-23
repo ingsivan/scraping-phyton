@@ -3,8 +3,8 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from .crawler import CrawlConfig, crawl_site
-from .exporter import export_urls_to_excel
+from .crawler import CrawlConfig, audit_site
+from .exporter import export_audit_to_excel
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -45,6 +45,16 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Permite rastrear subdominios del dominio inicial.",
     )
+    parser.add_argument(
+        "--audit-indexability",
+        action="store_true",
+        help="Detecta meta robots y cabeceras X-Robots-Tag para marcar noindex/nofollow.",
+    )
+    parser.add_argument(
+        "--audit-sitemaps",
+        action="store_true",
+        help="Descubre robots.txt y audita todos los sitemaps declarados por el sitio.",
+    )
     return parser
 
 
@@ -71,14 +81,25 @@ def main() -> int:
     )
 
     print(f"Rastreando {config.start_url} ...")
-    results = crawl_site(config)
+    result = audit_site(
+        config,
+        audit_indexability=args.audit_indexability,
+        include_sitemaps=args.audit_sitemaps,
+    )
 
     output_path = Path(args.output).expanduser().resolve()
-    export_urls_to_excel(results, output_path)
+    export_audit_to_excel(result, output_path)
 
-    visited_count = sum(1 for item in results if item.status_code is not None)
-    print(f"URLs encontradas: {len(results)}")
+    visited_count = sum(1 for item in result.urls if item.status_code is not None)
+    print(f"URLs encontradas: {len(result.urls)}")
     print(f"Paginas visitadas: {visited_count}")
+    if args.audit_sitemaps:
+        print(f"Sitemaps auditados: {len(result.sitemaps)}")
+    if args.audit_indexability:
+        noindex_count = sum(1 for item in result.urls if item.has_noindex)
+        nofollow_count = sum(1 for item in result.urls if item.has_nofollow)
+        print(f"URLs con noindex: {noindex_count}")
+        print(f"URLs con nofollow: {nofollow_count}")
     print(f"Excel generado en: {output_path}")
     if visited_count == 0:
         print("Aviso: no se pudo visitar ninguna pagina. Revisa red, SSL o la URL indicada.")

@@ -10,6 +10,8 @@ Repositorio: [https://github.com/ingsivan/scraping-phyton](https://github.com/in
 - Recorre las paginas internas del mismo dominio.
 - Normaliza enlaces internos.
 - Ignora enlaces como `mailto:`, `tel:` y archivos no HTML comunes.
+- Puede auditar `noindex` y `nofollow` via `meta robots` y `X-Robots-Tag`.
+- Puede descubrir `robots.txt`, recorrer todos los sitemaps del sitio y consolidar esas URLs en el Excel.
 - Genera un archivo `.xlsx` con el listado encontrado.
 
 ## Requisitos
@@ -149,6 +151,18 @@ Ejemplo completo:
 python3 -m site_urls_scraper https://www.tusitio.com --output reporte.xlsx --max-pages 500 --timeout 10 --delay 0.2
 ```
 
+Auditoria SEO completa con sitemaps e indexabilidad:
+
+```bash
+python3 -m site_urls_scraper https://www.tusitio.com --output auditoria.xlsx --max-pages 500 --audit-sitemaps --audit-indexability
+```
+
+Ejemplo para `https://www.garzablancaresort.com/`:
+
+```bash
+python3 -m site_urls_scraper https://www.garzablancaresort.com/ --output garzablanca_auditoria.xlsx --max-pages 5000 --delay 0.2 --audit-sitemaps --audit-indexability
+```
+
 ## 6. Parametros disponibles
 
 - `url`: URL inicial del sitio que quieres revisar.
@@ -158,6 +172,8 @@ python3 -m site_urls_scraper https://www.tusitio.com --output reporte.xlsx --max
 - `--delay`: espera entre solicitudes para no golpear el servidor. Por defecto `0`.
 - `--include-fragments`: conserva fragmentos como `#contacto`.
 - `--allow-subdomains`: permite rastrear subdominios del dominio inicial.
+- `--audit-indexability`: revisa `meta robots` y `X-Robots-Tag` para detectar `noindex` y `nofollow`.
+- `--audit-sitemaps`: descubre sitemaps desde `robots.txt` y audita sus URLs.
 
 ## 7. Como funciona el script
 
@@ -173,8 +189,9 @@ El flujo interno del script es este:
 8. Si la respuesta es HTML, extrae los enlaces `<a href="...">` con `BeautifulSoup`.
 9. Convierte los enlaces relativos en absolutos.
 10. Filtra enlaces externos, enlaces no validos y archivos no HTML comunes como `.pdf`, `.jpg`, `.css` o `.js`.
-11. Guarda cada URL encontrada junto con su profundidad, codigo HTTP y la pagina donde fue encontrada.
-12. Cuando termina el recorrido, `site_urls_scraper/exporter.py` genera el archivo Excel con `pandas`.
+11. Si activas `--audit-sitemaps`, descubre los sitemaps publicados por el sitio y agrega sus URLs al consolidado.
+12. Si activas `--audit-indexability`, detecta `noindex` y `nofollow` desde HTML y cabeceras HTTP.
+13. Cuando termina el recorrido, `site_urls_scraper/exporter.py` genera el archivo Excel con `pandas`.
 
 ### Archivos principales
 
@@ -194,12 +211,28 @@ El flujo interno del script es este:
 
 ## 8. Salida del Excel
 
-El archivo generado contiene una hoja llamada `urls` con estas columnas:
+El archivo generado contiene estas hojas:
 
-- `url`: URL encontrada.
-- `depth`: profundidad desde la URL inicial.
+- `summary`: resumen general con total de URLs, errores HTTP, URLs con `noindex`, URLs con `nofollow` y sitemaps auditados.
+- `urls`: consolidado principal por URL.
+- `issues`: subset de URLs con problemas o señales relevantes.
+- `sitemaps`: inventario de sitemaps auditados.
+
+La hoja `urls` incluye:
+
+- `url`: URL consolidada.
+- `depth`: profundidad desde la URL inicial si fue descubierta por crawl.
 - `status_code`: codigo HTTP obtenido al visitar la URL.
-- `source_url`: pagina donde se encontro ese enlace.
+- `source_url`: pagina donde se encontro el enlace durante el crawl.
+- `found_in_crawl`: indica si la URL fue encontrada navegando el sitio.
+- `listed_in_sitemap`: indica si la URL aparecio en algun sitemap.
+- `sitemap_count`: numero de sitemaps donde aparece la URL.
+- `sitemap_sources`: listado de sitemaps donde aparecio.
+- `meta_robots`: contenido de etiquetas `meta robots` detectadas.
+- `x_robots_tag`: valor de la cabecera `X-Robots-Tag`.
+- `has_noindex`: marca si la URL tiene `noindex`.
+- `has_nofollow`: marca si la URL tiene `nofollow`.
+- `issue_flags`: etiquetas rapidas como `http_404`, `noindex`, `nofollow`, `sitemap_only` o `crawl_only`.
 
 ## 9. Ejecutar pruebas
 
